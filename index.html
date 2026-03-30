@@ -805,10 +805,18 @@ window._fbOnValue = onValue;
 window._fbReady = true;
 
 // Listen for real-time changes from other devices
+let _fbFirstLoad = true;
 const stateRef = ref(fbDb, 'calaguala/state');
 onValue(stateRef, (snapshot) => {
   const data = snapshot.val();
-  if(data && window._fbIgnoreNext){window._fbIgnoreNext=false;return;}
+  // Skip echo from our own save
+  if(data && window._fbIgnoreNext){window._fbIgnoreNext=false;_fbFirstLoad=false;return;}
+  // On first load: only apply if localStorage is empty
+  if(_fbFirstLoad){
+    _fbFirstLoad=false;
+    const hasLocal = localStorage.getItem('cal_v6');
+    if(hasLocal) return; // use local data
+  }
   if(data && typeof window.fbOnRemoteChange === 'function'){
     window.fbOnRemoteChange(data);
   }
@@ -896,7 +904,7 @@ function loadTC(){
   if(s){ try{ return JSON.parse(s); }catch(e){} }
   return JSON.parse(JSON.stringify(TC_DEFAULT));
 }
-function saveTC(tc){ localStorage.setItem('cal_tc', JSON.stringify(tc)); }
+function saveTC(tc){ localStorage.setItem('cal_tc', JSON.stringify(tc)); fbSave(); }
 
 function getEstacion(){
   const m = new Date().getMonth(); // 0-11
@@ -993,6 +1001,8 @@ function fbSave(){
     sanidad: localStorage.getItem('cal_sanidad')||'',
     ch_extra: localStorage.getItem('cal_ch_extra')||'',
     pasturas: localStorage.getItem('cal_pasturas')||'',
+    pesadas: localStorage.getItem('cal_pesadas')||'',
+    san_tipos: localStorage.getItem('cal_san_tipos')||'',
     ts: Date.now()
   };
   window._fbSet(window._fbRef(window._fbDb,'calaguala/state'), data)
@@ -1002,17 +1012,17 @@ function fbSave(){
 function fbOnRemoteChange(data){
   // Called when another device updates the data
   if(!data||!data.state)return;
-  var localTs=parseInt(localStorage.getItem('cal_fb_ts')||'0');
-  if(data.ts && data.ts <= localTs)return; // our data is newer
-  // Update local state from remote
+  // Apply all data from remote — no timestamp blocking
   try{
     st=data.state;
     if(data.tc)localStorage.setItem('cal_tc',data.tc);
+    if(data.tareas)localStorage.setItem('cal_tareas',data.tareas);
     if(data.sanidad)localStorage.setItem('cal_sanidad',data.sanidad);
     if(data.ch_extra)localStorage.setItem('cal_ch_extra',data.ch_extra);
     if(data.pasturas)localStorage.setItem('cal_pasturas',data.pasturas);
+    if(data.pesadas)localStorage.setItem('cal_pesadas',data.pesadas);
+    if(data.san_tipos)localStorage.setItem('cal_san_tipos',data.san_tipos);
     localStorage.setItem('cal_v6',JSON.stringify(st));
-    localStorage.setItem('cal_fb_ts',data.ts||Date.now());
     render();
     showFbSync();
   }catch(e){console.warn('Firebase apply error:',e);}
@@ -1880,7 +1890,10 @@ function abrirBackup(){
     tareas:localStorage.getItem('cal_tareas')||'',
     sanidad:localStorage.getItem('cal_sanidad')||'',
     ch_extra:localStorage.getItem('cal_ch_extra')||'',
-    pasturas:localStorage.getItem('cal_pasturas')||''
+    pasturas:localStorage.getItem('cal_pasturas')||'',
+    pesadas:localStorage.getItem('cal_pesadas')||'',
+    san_tipos:localStorage.getItem('cal_san_tipos')||'',
+    san_tipos:localStorage.getItem('cal_san_tipos')||''
   };
   document.getElementById('exportTxt').value=JSON.stringify(datos);
   document.getElementById('importTxt').value='';
@@ -1921,6 +1934,7 @@ function confirmarImport(){
     if(datos.ch_extra) localStorage.setItem('cal_ch_extra',datos.ch_extra);
     if(datos.pasturas) localStorage.setItem('cal_pasturas',datos.pasturas);
     if(datos.pesadas) localStorage.setItem('cal_pesadas',datos.pesadas);
+    if(datos.san_tipos) localStorage.setItem('cal_san_tipos',datos.san_tipos);
     cerrar('mBackup');
     render();
     alert('\u2705 Datos restaurados correctamente.');
@@ -2156,7 +2170,7 @@ function gdAutoSave(){
 
 // ── PESADAS ───────────────────────────────────────────────────────────────
 function getPesadas(lid){try{var d=JSON.parse(localStorage.getItem('cal_pesadas')||'{}');return d[lid]||[];}catch(e){return[];}}
-function savePesadas(lid,arr){try{var d=JSON.parse(localStorage.getItem('cal_pesadas')||'{}');d[lid]=arr;localStorage.setItem('cal_pesadas',JSON.stringify(d));}catch(e){}}
+function savePesadas(lid,arr){try{var d=JSON.parse(localStorage.getItem('cal_pesadas')||'{}');d[lid]=arr;localStorage.setItem('cal_pesadas',JSON.stringify(d));fbSave();}catch(e){}}
 
 var pesTabLid=null;
 
@@ -2580,7 +2594,7 @@ function getPasturas(){
   localStorage.setItem('cal_pasturas',JSON.stringify(arr));
   return arr;
 }
-function savePasturas(arr){localStorage.setItem('cal_pasturas',JSON.stringify(arr));}
+function savePasturas(arr){localStorage.setItem('cal_pasturas',JSON.stringify(arr));fbSave();}
 
 function pastClasifLabel(c){
   return{cn:'Campo natural',cnm:'CN Mejorado',pradera:'Pradera perenne',raigras:'Verdeo invierno',avena:'Verdeo invierno',verdeo_verano:'Verdeo verano',mejorado:'Mejorado',otro:'Mejorado'}[c]||c;
@@ -2686,7 +2700,7 @@ function getSanTipos(){
   localStorage.setItem('cal_san_tipos',JSON.stringify(def));
   return def;
 }
-function saveSanTipos(arr){localStorage.setItem('cal_san_tipos',JSON.stringify(arr));}
+function saveSanTipos(arr){localStorage.setItem('cal_san_tipos',JSON.stringify(arr));fbSave();}
 function sanTiposSelectHtml(selected){
   return getSanTipos().map(function(t){
     return '<option'+(t===selected?' selected':'')+'>'+t+'</option>';
