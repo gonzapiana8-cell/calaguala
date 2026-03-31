@@ -806,18 +806,22 @@ window._fbReady = true;
 
 // Listen for real-time changes from other devices
 let _fbFirstLoad = true;
+let _fbLastSaveTs = 0;
+window._fbSetLastSaveTs = function(ts){ _fbLastSaveTs = ts; };
 const stateRef = ref(fbDb, 'calaguala/state');
 onValue(stateRef, (snapshot) => {
   const data = snapshot.val();
-  // Skip echo from our own save
-  if(data && window._fbIgnoreNext){window._fbIgnoreNext=false;_fbFirstLoad=false;return;}
+  if(!data) return;
   // On first load: only apply if localStorage is empty
   if(_fbFirstLoad){
     _fbFirstLoad=false;
     const hasLocal = localStorage.getItem('cal_v6');
-    if(hasLocal) return; // use local data
+    if(hasLocal) return; // use local data on first load
   }
-  if(data && typeof window.fbOnRemoteChange === 'function'){
+  // Skip if this update is older than or equal to our last save
+  // (prevents echo from overwriting our own fresh data)
+  if(data.ts && data.ts <= _fbLastSaveTs) return;
+  if(typeof window.fbOnRemoteChange === 'function'){
     window.fbOnRemoteChange(data);
   }
 });
@@ -993,7 +997,8 @@ function save(){
 
 function fbSave(){
   if(!window._fbReady)return;
-  window._fbIgnoreNext=true;
+  var _ts=Date.now();
+  if(window._fbSetLastSaveTs) window._fbSetLastSaveTs(_ts);
   var data={
     state: st,
     tc: localStorage.getItem('cal_tc')||'',
@@ -1003,7 +1008,8 @@ function fbSave(){
     pasturas: localStorage.getItem('cal_pasturas')||'',
     pesadas: localStorage.getItem('cal_pesadas')||'',
     san_tipos: localStorage.getItem('cal_san_tipos')||'',
-    ts: Date.now()
+    dismissed: localStorage.getItem('cal_dismissed')||'',
+    ts: _ts
   };
   window._fbSet(window._fbRef(window._fbDb,'calaguala/state'), data)
     .catch(function(e){console.warn('Firebase save error:',e);});
@@ -1022,6 +1028,7 @@ function fbOnRemoteChange(data){
     if(data.pasturas)localStorage.setItem('cal_pasturas',data.pasturas);
     if(data.pesadas)localStorage.setItem('cal_pesadas',data.pesadas);
     if(data.san_tipos)localStorage.setItem('cal_san_tipos',data.san_tipos);
+    if(data.dismissed)localStorage.setItem('cal_dismissed',data.dismissed);
     localStorage.setItem('cal_v6',JSON.stringify(st));
     render();
     showFbSync();
@@ -1195,7 +1202,7 @@ function rPotreros(){
   // Chips
   var chips=['todos','cn','mejorado'].map(function(t){
     var cnt=t==='todos'?all.length:t==='cn'?cnAll.length:mejAll.length;
-    var lbl={todos:'Todos',cn:'Campo natural',mejorado:'Mejorado'}[t];
+    var lbl={todos:'Todos',cn:'Campo natural',mejorado:'Pasturas sembradas'}[t];
     return '<button class="fchip'+(potFiltro===t?' on':'')+'" data-f="'+t+'" onclick="setPotFiltro(this.dataset.f)">'+lbl+' <span style="opacity:.7;font-size:11px">('+cnt+')</span></button>';
   }).join('');
   var fEl=document.getElementById('fchips');if(fEl)fEl.innerHTML=chips;
@@ -1212,7 +1219,7 @@ function rPotreros(){
   var SEC='<div style="grid-column:1/-1;padding:8px 2px 4px;font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;border-bottom:2px solid var(--br);margin-bottom:2px">';
   if(potFiltro==='todos'||potFiltro==='cn'){
     var ps=sortPs(cnAll);
-    if(ps.length)h+=SEC+'&#x1F331; Campo natural / CN Mejorado <span style="font-weight:400;opacity:.6">('+ps.length+')</span></div>'+ps.map(cP).join('');
+    if(ps.length)h+=SEC+'&#x1F331; Campo natural <span style="font-weight:400;opacity:.6">('+ps.length+')</span></div>'+ps.map(cP).join('');
   }
   if(potFiltro==='todos'&&mejAll.length)h+=SEC+'&#x1F33E; Mejorado <span style="font-weight:400;opacity:.6">('+mejAll.length+')</span></div>'+sortPs(mejAll).map(cP).join('');
   if(potFiltro==='mejorado'){
@@ -1279,7 +1286,7 @@ function cP(p){
   const mTag=multi?'<span class="mtag">2 potreros</span>':'';
   const lH=lo?'<div class="pll">'+lo.nombre+mTag+' &middot; '+lo.cabezas+' cab</div>':'<div class="pll" style="color:#ccc">Sin lote</div>';
   const loOv=p.lOv?gl(p.lOv):null;
-  const ovH=loOv?'<div style="font-size:10px;color:#6d4c41;background:#fbe9e7;border-radius:3px;padding:2px 7px;margin-top:3px;display:inline-block">?? '+loOv.nombre+' · '+(loOv.cabezas*loOv.ugCab).toFixed(1)+' UG perm.</div>':''  ;
+  const ovH=loOv?'<div style="font-size:10px;color:#6d4c41;background:#fbe9e7;border-radius:3px;padding:2px 7px;margin-top:3px;display:inline-block">&#x1F411; '+loOv.nombre+' · '+(loOv.cabezas*loOv.ugCab).toFixed(1)+' UG perm.</div>':''  ;
   // MS box
   let msH='';
   if(p.status==='ocupado'){
@@ -1893,6 +1900,7 @@ function abrirBackup(){
     pasturas:localStorage.getItem('cal_pasturas')||'',
     pesadas:localStorage.getItem('cal_pesadas')||'',
     san_tipos:localStorage.getItem('cal_san_tipos')||'',
+    dismissed:localStorage.getItem('cal_dismissed')||'',
     san_tipos:localStorage.getItem('cal_san_tipos')||''
   };
   document.getElementById('exportTxt').value=JSON.stringify(datos);
@@ -1935,6 +1943,7 @@ function confirmarImport(){
     if(datos.pasturas) localStorage.setItem('cal_pasturas',datos.pasturas);
     if(datos.pesadas) localStorage.setItem('cal_pesadas',datos.pesadas);
     if(datos.san_tipos) localStorage.setItem('cal_san_tipos',datos.san_tipos);
+    if(datos.dismissed) localStorage.setItem('cal_dismissed',datos.dismissed);
     cerrar('mBackup');
     render();
     alert('\u2705 Datos restaurados correctamente.');
@@ -1972,7 +1981,7 @@ function proxBadge(proxima){
 }
 
 function getDismissed(){try{return JSON.parse(localStorage.getItem('cal_dismissed')||'{}');}catch(e){return{};}}
-function dismissAlerta(sid){var d=getDismissed();d[sid]=1;localStorage.setItem('cal_dismissed',JSON.stringify(d));rAlertas();}
+function dismissAlerta(sid){var d=getDismissed();d[sid]=1;localStorage.setItem('cal_dismissed',JSON.stringify(d));fbSave();rAlertas();}
 
 function delSanidad(sid){
   if(!confirm('¿Eliminar este registro de sanidad?'))return;
@@ -1989,11 +1998,11 @@ function tipoPastura(p){
   var found=arr.find(function(x){return x.label===p.pastura;});
   if(found){
     if(found.clasif==='cn')return 'cn';
-    if(found.clasif==='cnm')return 'cnm';
+    if(found.clasif==='cnm')return 'mejorado'; // CN mejorado va en Mejorado
     return 'mejorado';
   }
   var s=(p.pastura||'').toLowerCase();
-  if(s.includes('mejorado'))return 'cnm';
+  if(s.includes('mejorado'))return 'mejorado';
   if(s.includes('campo natural')||s===''||s==='cn')return 'cn';
   return 'mejorado';
 }
@@ -3047,7 +3056,7 @@ function renderTareas(){
       +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">'
       +'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:3px;background:'+pc[0]+';color:'+pc[1]+'">'+t.prioridad.toUpperCase()+'</span>'
       +(t.categoria?'<span style="font-size:10px;padding:2px 7px;border-radius:3px;background:var(--f);color:var(--t2);border:1px solid var(--br)">'+(TAR_CAT_EMO[t.categoria]||'')+' '+(TAR_CAT_LBL[t.categoria]||t.categoria)+'</span>':'')
-      +(t.potrero?'<span style="font-size:10px;padding:2px 7px;border-radius:3px;background:var(--f);color:var(--t2);border:1px solid var(--br)">?? '+t.potrero+'</span>':'')
+      +(t.potrero?'<span style="font-size:10px;padding:2px 7px;border-radius:3px;background:var(--f);color:var(--t2);border:1px solid var(--br)">📍 '+t.potrero+'</span>':'')
       +'<span style="margin-left:auto;font-size:12px;color:var(--t2)">'+estDot+' '+(TAR_EST_LBL[t.estado||'pendiente']||t.estado||'')+'</span>'
       +'</div>'
       +'<div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:4px'+(t.estado==='realizada'||t.done?';text-decoration:line-through':'')+'">'+t.desc+'</div>'
@@ -3057,7 +3066,7 @@ function renderTareas(){
       +'<div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap">'
       +(t.estado!=='realizada'&&!t.done?'<button style="font-size:11px;padding:5px 10px;border:1.5px solid #a5d6a7;border-radius:6px;background:#e8f5e9;color:#2d6a27;cursor:pointer;font-family:var(--sa)" data-id="'+t.id+'" onclick="marcarTarea(this.dataset.id)">✓</button>':'')
       +'<button style="font-size:11px;padding:5px 10px;border:1.5px solid var(--br);border-radius:6px;background:#fff;cursor:pointer;font-family:var(--sa)" data-id="'+t.id+'" onclick="editarTarea(this.dataset.id)">✏</button>'
-      +(t.estado!=='realizada'&&!t.done?'<button style="font-size:11px;padding:5px 10px;border:1.5px solid #c5d9f7;border-radius:6px;background:#e8f0fe;color:#1a73e8;cursor:pointer;font-family:var(--sa)" data-id="'+t.id+'" onclick="tarAbrirGcal(this.dataset.id)">??</button>':'')
+      +(t.estado!=='realizada'&&!t.done?'<button style="font-size:11px;padding:5px 10px;border:1.5px solid #c5d9f7;border-radius:6px;background:#e8f0fe;color:#1a73e8;cursor:pointer;font-family:var(--sa)" data-id="'+t.id+'" onclick="tarAbrirGcal(this.dataset.id)">📅</button>':'')
       +'<button style="font-size:11px;padding:5px 10px;border:1.5px solid var(--ap);border-radius:6px;background:var(--ap);color:var(--a);cursor:pointer;font-family:var(--sa)" data-id="'+t.id+'" onclick="elimTarea(this.dataset.id)">✕</button>'
       +'</div></div></div>';
   }
@@ -3082,7 +3091,7 @@ function renderTareas(){
     pots.sort();
     pots.forEach(function(pot){
       var items=arr.filter(function(t){return (t.potrero||'Sin potrero')===pot;});
-      h+='<div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;padding:6px 0;border-bottom:2px solid var(--br);margin-bottom:8px;margin-top:12px">?? '+pot+'</div>'+items.map(tarCard).join('');
+      h+='<div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;padding:6px 0;border-bottom:2px solid var(--br);margin-bottom:8px;margin-top:12px">📍 '+pot+'</div>'+items.map(tarCard).join('');
     });
   } else {
     h=arr.map(tarCard).join('');
