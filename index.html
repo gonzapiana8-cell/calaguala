@@ -835,7 +835,7 @@ onValue(stateRef, (snapshot) => {
   }
 })();
 
-const UGB=400,SPG=767.7;
+const UGB=400;let SPG=767.7;
 const PCT={toros:.015,vacas_cria:.0185,nov3:.021,nov23:.021,nov12:.022,vaq2:.020,vaq12:.022,terneros:.025,terneras:.025,vacas_inv:.0195,novillos:.021,carneros:.025,ovejas_cria:.025,ovejas_cons:.025,capones:.025,borregos2d:.025,borregas2d:.025,borregosbl:.025,borregasbl:.025,otro:.019};
 const CATN={toros:'Toros',vacas_cria:'Vac.Cría',nov3:'Nov.+3',nov23:'Nov.2-3',nov12:'Nov.1-2',vaq2:'Vaq.+2',vaq12:'Vaq.1-2',terneros:'Terneros',terneras:'Terneras',vacas_inv:'Vac.Inv',novillos:'Novillos',carneros:'Carneros',ovejas_cria:'Ov.Cría',ovejas_cons:'Ov.Cons',capones:'Capones',borregos2d:'Borr.2d',borregas2d:'Borr♀.2d',borregosbl:'Borr.dl',borregasbl:'Borr♀.dl',otro:'Otro'};
 const COLS=['#4a7c42','#3a6b8a','#8b6914','#7a3e10','#7b4fa8','#1a7a7a','#b06a2c','#5a3e8a','#8a4a2c','#2c6e8a'];
@@ -1171,6 +1171,9 @@ function rAlertas(){
 
 function rResumen(){
   const ps=Object.values(st.po);
+  // Recalcular SPG dinámicamente desde los potreros actuales
+  SPG=ps.reduce((s,p)=>s+(parseFloat(p.has)||0),0);
+  SPG=Math.round(SPG*10)/10;
   const n=s=>ps.filter(p=>p.status===s).length;
   const ugT=st.lo.reduce((s,l)=>s+(l.cabezas*l.ugCab),0);
   // Add permanent ovino lotes (avoid double-counting if also in st.lo)
