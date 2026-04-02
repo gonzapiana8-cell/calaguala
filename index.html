@@ -827,7 +827,10 @@ onValue(stateRef, (snapshot) => {
 });
 </script>
 
-<script>// Capture OAuth hash immediately before anything strips it
+<script>
+// Parse YYYY-MM-DD as local date (avoid UTC timezone offset)
+function parseLocalDate(s){if(!s)return null;var p=s.split('-');return new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));}
+// Capture OAuth hash immediately before anything strips it
 (function(){
   var h=window.location.hash;
   if(h&&h.includes('access_token')){
@@ -999,6 +1002,8 @@ function fbSave(){
   if(!window._fbReady)return;
   var _ts=Date.now();
   if(window._fbSetLastSaveTs) window._fbSetLastSaveTs(_ts);
+  // Store ts in localStorage so we can compare on next load
+  localStorage.setItem('cal_fb_ts', String(_ts));
   var data={
     state: st,
     tc: localStorage.getItem('cal_tc')||'',
@@ -1018,7 +1023,9 @@ function fbSave(){
 function fbOnRemoteChange(data){
   // Called when another device updates the data
   if(!data||!data.state)return;
-  // Apply all data from remote — no timestamp blocking
+  // Only apply if remote data is newer than our last local save
+  var localTs=parseInt(localStorage.getItem('cal_fb_ts')||'0');
+  if(data.ts && data.ts <= localTs) return; // our local data is newer
   try{
     st=data.state;
     if(data.tc)localStorage.setItem('cal_tc',data.tc);
@@ -1030,6 +1037,7 @@ function fbOnRemoteChange(data){
     if(data.san_tipos)localStorage.setItem('cal_san_tipos',data.san_tipos);
     if(data.dismissed)localStorage.setItem('cal_dismissed',data.dismissed);
     localStorage.setItem('cal_v6',JSON.stringify(st));
+    localStorage.setItem('cal_fb_ts', String(data.ts||Date.now()));
     render();
     showFbSync();
   }catch(e){console.warn('Firebase apply error:',e);}
@@ -1043,13 +1051,13 @@ function showFbSync(){
   el.title='Sincronizado';
   setTimeout(function(){if(el)el.style.background='';},2000);
 }
-function ff(d){if(!d)return'\u2014';if(typeof d==='string')d=new Date(d);return d.toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',year:'2-digit'});}
+function ff(d){if(!d)return'\u2014';if(typeof d==='string'){var pts=d.split('-');d=new Date(parseInt(pts[0]),parseInt(pts[1])-1,parseInt(pts[2]));}return d.toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',year:'2-digit'});}
 function dd(f){if(!f)return 0;return Math.floor((Date.now()-new Date(f).getTime())/86400000);}
 function dh(f){if(!f)return null;return Math.floor((new Date(f).getTime()-Date.now())/86400000);}
 function gl(id){return st.lo.find(l=>l.id===id);}
-function hoy(){return new Date().toISOString().slice(0,10);}
+function hoy(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function listo(p){return p.status==='descanso'&&dd(p.fSal)>=p.descansoObj;}
-function ihab(p){return p.status==='implantacion'&&p.fHab&&new Date(p.fHab)<=new Date();}
+function ihab(p){return p.status==='implantacion'&&p.fHab&&parseLocalDate(p.fHab)<=new Date();}
 function potsLote(lid){return Object.values(st.po).filter(p=>p.lA===lid&&p.status==='ocupado');}
 
 
@@ -1157,7 +1165,7 @@ function rAlertas(){
     sanD.forEach(function(s){
       if(!s.proxima)return;
       if(dismissed[s.id])return;
-      var px=new Date(s.proxima);px.setHours(0,0,0,0);
+      var px=parseLocalDate(s.proxima);if(px)px.setHours(0,0,0,0);
       var diff=Math.round((px-hoyD2)/86400000);
       var txt=null;var cls='chip li';
       if(diff<0){txt='\u26a0 '+s.producto+' ('+(s.categoria||s.especie||'')+') VENCIDA hace '+Math.abs(diff)+'d';cls='chip wa';}
@@ -1272,7 +1280,7 @@ function cP(p){
   }else if(p.status==='implantacion'){
     var dhv=dh(p.fHab);
     var diasSiem=p.fSiem?Math.round((Date.now()-new Date(p.fSiem).getTime())/86400000):0;
-    var totalImpl=p.fSiem&&p.fHab?Math.round((new Date(p.fHab)-new Date(p.fSiem))/86400000):60;
+    var totalImpl=p.fSiem&&p.fHab?Math.round((parseLocalDate(p.fHab)-parseLocalDate(p.fSiem))/86400000):60;
     var pctImpl=totalImpl>0?Math.min(100,Math.round((diasSiem/totalImpl)*100)):0;
     var barColor=dhv!==null&&dhv<=0?'#2d6a27':dhv!==null&&dhv<=7?'#e65100':'#4a7c4e';
     var habTxt=dhv===null?'sin fecha':dhv<=0?'<strong style="color:#2d6a27">Lista para pastorear</strong>':dhv<=7?'<strong style="color:#e65100">En '+dhv+'d</strong>':'en '+dhv+'d';
@@ -1973,7 +1981,7 @@ function sanProxDesdeD(){
 function proxBadge(proxima){
   if(!proxima)return '';
   var hoyD=new Date();hoyD.setHours(0,0,0,0);
-  var proxD=new Date(proxima);proxD.setHours(0,0,0,0);
+  var proxD=parseLocalDate(proxima);if(proxD)proxD.setHours(0,0,0,0);
   var diff=Math.round((proxD-hoyD)/86400000);
   var txt,bg,col;
   if(diff<0){txt='Vencida hace '+Math.abs(diff)+'d';bg='var(--ap)';col='var(--a)';}
@@ -2949,7 +2957,9 @@ function tarFechaDesdeWhen(when){
 function tarDiasParaVencer(t){
   if(!t.fechaVence)return null;
   var h=new Date();h.setHours(0,0,0,0);
-  var v=new Date(t.fechaVence);v.setHours(0,0,0,0);
+  // Parse as local date to avoid UTC timezone offset bug
+  var parts=t.fechaVence.split('-');
+  var v=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));
   return Math.round((v-h)/86400000);
 }
 
@@ -3003,9 +3013,10 @@ var TAR_VIEWS=[
 
 function tarFiltrarPorVista(arr,view){
   var h=new Date();h.setHours(0,0,0,0);
-  var hStr=h.toISOString().slice(0,10);
+  // Use local date string to avoid UTC timezone offset
+  var hStr=h.getFullYear()+'-'+String(h.getMonth()+1).padStart(2,'0')+'-'+String(h.getDate()).padStart(2,'0');
   var finSem=new Date(h);finSem.setDate(h.getDate()+(6-(h.getDay()||7)+1));
-  var finSemStr=finSem.toISOString().slice(0,10);
+  var finSemStr=finSem.getFullYear()+'-'+String(finSem.getMonth()+1).padStart(2,'0')+'-'+String(finSem.getDate()).padStart(2,'0');
   if(view==='hoy')return arr.filter(function(t){return !t.done&&t.estado!=='realizada'&&t.estado!=='cancelada'&&t.fechaVence&&t.fechaVence<=hStr;});
   if(view==='semana')return arr.filter(function(t){return !t.done&&t.estado!=='realizada'&&t.estado!=='cancelada'&&t.fechaVence&&t.fechaVence>=hStr&&t.fechaVence<=finSemStr;});
   if(view==='vencidas')return arr.filter(function(t){return !t.done&&t.estado!=='realizada'&&t.estado!=='cancelada'&&t.fechaVence&&t.fechaVence<hStr;});
