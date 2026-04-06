@@ -947,6 +947,7 @@ function getKgDiaActual(pastura){
 function ini(){
   const s=localStorage.getItem('cal_v6');
   if(s){try{st=JSON.parse(s);}catch(e){}}
+  if(Object.keys(st.po||{}).length<5){st={po:{},lo:st.lo||[],deletedPo:st.deletedPo||[]};}
   if(!st.deletedPo)st.deletedPo=[];
   PD.forEach(p=>{
     if(!st.po[p.id]&&!st.deletedPo.includes(p.id)){
@@ -979,9 +980,7 @@ function fbLoad(){
     .then(function(snapshot){
       var data=snapshot.val();
       if(!data||!data.state)return;
-      var localDeleted=st.deletedPo||[];
       st=data.state;
-      if(!st.deletedPo||st.deletedPo.length<localDeleted.length)st.deletedPo=localDeleted;
       if(data.tc)localStorage.setItem('cal_tc',data.tc);
     if(data.tareas)localStorage.setItem('cal_tareas',data.tareas);
       if(data.sanidad)localStorage.setItem('cal_sanidad',data.sanidad);
@@ -1032,9 +1031,7 @@ function fbOnRemoteChange(data){
   var localTs=parseInt(localStorage.getItem('cal_fb_ts')||'0');
   if(data.ts && data.ts <= localTs) return; // our local data is newer
   try{
-    var localDeleted=st.deletedPo||[];
     st=data.state;
-    if(!st.deletedPo||st.deletedPo.length<localDeleted.length)st.deletedPo=localDeleted;
     if(data.tc)localStorage.setItem('cal_tc',data.tc);
     if(data.tareas)localStorage.setItem('cal_tareas',data.tareas);
     if(data.sanidad)localStorage.setItem('cal_sanidad',data.sanidad);
