@@ -979,7 +979,9 @@ function fbLoad(){
     .then(function(snapshot){
       var data=snapshot.val();
       if(!data||!data.state)return;
+      var localDeleted=st.deletedPo||[];
       st=data.state;
+      if(!st.deletedPo||st.deletedPo.length<localDeleted.length)st.deletedPo=localDeleted;
       if(data.tc)localStorage.setItem('cal_tc',data.tc);
     if(data.tareas)localStorage.setItem('cal_tareas',data.tareas);
       if(data.sanidad)localStorage.setItem('cal_sanidad',data.sanidad);
@@ -1030,7 +1032,9 @@ function fbOnRemoteChange(data){
   var localTs=parseInt(localStorage.getItem('cal_fb_ts')||'0');
   if(data.ts && data.ts <= localTs) return; // our local data is newer
   try{
+    var localDeleted=st.deletedPo||[];
     st=data.state;
+    if(!st.deletedPo||st.deletedPo.length<localDeleted.length)st.deletedPo=localDeleted;
     if(data.tc)localStorage.setItem('cal_tc',data.tc);
     if(data.tareas)localStorage.setItem('cal_tareas',data.tareas);
     if(data.sanidad)localStorage.setItem('cal_sanidad',data.sanidad);
@@ -1528,7 +1532,7 @@ function confImpl(){
   if(!f){if(errEl)errEl.textContent='Ingres\u00e1 la fecha de siembra.';return;}
   const h=document.getElementById('implH').value||null;
   const p=st.po[cx.pid];
-  if(!p){if(errEl)errEl.textContent='Error: potrér​o no encontrado. Cerr​á y reintent​á.';alert('DEBUG: potrero no encontrado. cx.pid='+cx.pid+' | keys='+Object.keys(st.po).slice(0,5).join(','));return;}
+  if(!p){if(errEl)errEl.textContent='Error: potr\u00e9ro no encontrado. Cerr\u00e1 y reintent\u00e1.';return;}
   if(!p.hist)p.hist=[];
   p.status='implantacion';p.fSiem=f;p.fHab=h;p.eSiem=document.getElementById('implE').value;p.fBarb=null;p.fOBarb=null;
   p.hist.push({tipo:'implantacion',fecha:f,especie:p.eSiem,fechaHab:h||'',notas:document.getElementById('implN').value});
