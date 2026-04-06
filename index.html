@@ -630,9 +630,10 @@ header h1{font-family:var(--mo);font-size:13px;font-weight:600;letter-spacing:.0
 <div class="mo" id="mImpl">
   <div class="md"><div class="mh"></div><h2 id="mImplT">Implantaci&oacute;n</h2>
     <div class="fg"><label>Fecha de siembra</label><input type="date" id="implF"></div>
-    <div class="fg"><label>Fecha de habilitaci&oacute;n para pastoreo</label><input type="date" id="implH"><div class="hint">La app te avisa cuando llegue esta fecha.</div></div>
+    <div class="fg"><label>Fecha de habilitaci&oacute;n para pastoreo <span style="font-weight:400;color:var(--t2);font-size:12px">(opcional)</span></label><input type="date" id="implH"><div class="hint">La app te avisa cuando llegue esta fecha.</div></div>
     <div class="fg"><label>Especie sembrada</label><input type="text" id="implE" placeholder="ej: Raigr&aacute;s anual, Lotus"></div>
     <div class="fg"><label>Notas</label><input type="text" id="implN" placeholder="ej: 33 kg/ha voleo"></div>
+    <div id="implErr" style="color:#c0392b;font-size:13px;margin:0 4px 4px;min-height:18px"></div>
     <div class="ma"><button class="bc" onclick="cerrar('mImpl')">Cancelar</button><button class="bg am" onclick="confImpl()">Confirmar siembra</button></div>
   </div>
 </div>
@@ -994,8 +995,9 @@ function fbLoad(){
 
 function save(){
   localStorage.setItem('cal_v6',JSON.stringify(st));
-  fbSave();
+  var p=fbSave();
   gdAutoSave();
+  return p;
 }
 
 function fbSave(){
@@ -1016,7 +1018,7 @@ function fbSave(){
     dismissed: localStorage.getItem('cal_dismissed')||'',
     ts: _ts
   };
-  window._fbSet(window._fbRef(window._fbDb,'calaguala/state'), data)
+  return window._fbSet(window._fbRef(window._fbDb,'calaguala/state'), data)
     .catch(function(e){console.warn('Firebase save error:',e);});
 }
 
@@ -1519,10 +1521,16 @@ function abrirImpl(pid){cx={pid};const p=st.po[pid];
   document.getElementById('mImpl').classList.add('open');
 }
 function confImpl(){
-  const h=document.getElementById('implH').value;if(!h){alert('Ingres\u00e1 la fecha de habilitaci\u00f3n.');return;}
-  const p=st.po[cx.pid],f=document.getElementById('implF').value;
+  const errEl=document.getElementById('implErr');
+  if(errEl)errEl.textContent='';
+  const f=document.getElementById('implF').value;
+  if(!f){if(errEl)errEl.textContent='Ingres\u00e1 la fecha de siembra.';return;}
+  const h=document.getElementById('implH').value||null;
+  const p=st.po[cx.pid];
+  if(!p){if(errEl)errEl.textContent='Error: potr\u00e9ro no encontrado. Cerr\u00e1 y reintent\u00e1.';return;}
+  if(!p.hist)p.hist=[];
   p.status='implantacion';p.fSiem=f;p.fHab=h;p.eSiem=document.getElementById('implE').value;p.fBarb=null;p.fOBarb=null;
-  p.hist.push({tipo:'implantacion',fecha:f,especie:p.eSiem,fechaHab:h,notas:document.getElementById('implN').value});
+  p.hist.push({tipo:'implantacion',fecha:f,especie:p.eSiem,fechaHab:h||'',notas:document.getElementById('implN').value});
   save();cerrar('mImpl');render();
 }
 
@@ -1735,7 +1743,10 @@ function elimPotrero(){
   if(p.status==='ocupado'){alert('El potrero tiene animales. Sacálos primero.');return;}
   if(!confirm('¿Eliminar "'+p.nombre+'"? Esta acción no se puede deshacer.'))return;
   delete st.po[cx.pid];
-  save();cerrar('mPot');render();
+  var pr=save();
+  cerrar('mPot');render();
+  // Wait for Firebase to confirm before finishing
+  if(pr&&pr.then){pr.then(function(){console.log('Potrero eliminado confirmado en Firebase');});}
 }
 
 // DIVIDIR POTRERO
