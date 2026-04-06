@@ -951,7 +951,7 @@ function ini(){
   PD.forEach(p=>{
     if(!st.po[p.id]&&!st.deletedPo.includes(p.id)){
       st.po[p.id]={...p,descansoObj:p.dO,pastura:p.pa,status:'libre',lA:null,fEnt:null,fSal:null,fBarb:null,fOBarb:null,fSiem:null,fHab:null,eSiem:null,hist:[],kgMS:null,nota:'',lOv:null};
-    } else {
+    } else if(st.po[p.id]){
       const q=st.po[p.id];
       if(!q.hist)q.hist=[];
       if(!q.descansoObj)q.descansoObj=p.dO;
