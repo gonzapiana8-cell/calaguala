@@ -947,8 +947,9 @@ function getKgDiaActual(pastura){
 function ini(){
   const s=localStorage.getItem('cal_v6');
   if(s){try{st=JSON.parse(s);}catch(e){}}
+  if(!st.deletedPo)st.deletedPo=[];
   PD.forEach(p=>{
-    if(!st.po[p.id]){
+    if(!st.po[p.id]&&!st.deletedPo.includes(p.id)){
       st.po[p.id]={...p,descansoObj:p.dO,pastura:p.pa,status:'libre',lA:null,fEnt:null,fSal:null,fBarb:null,fOBarb:null,fSiem:null,fHab:null,eSiem:null,hist:[],kgMS:null,nota:'',lOv:null};
     } else {
       const q=st.po[p.id];
@@ -1742,6 +1743,8 @@ function elimPotrero(){
   const p=st.po[cx.pid];
   if(p.status==='ocupado'){alert('El potrero tiene animales. Sacálos primero.');return;}
   if(!confirm('¿Eliminar "'+p.nombre+'"? Esta acción no se puede deshacer.'))return;
+  if(!st.deletedPo)st.deletedPo=[];
+  if(!st.deletedPo.includes(cx.pid))st.deletedPo.push(cx.pid);
   delete st.po[cx.pid];
   var pr=save();
   cerrar('mPot');render();
@@ -1841,6 +1844,8 @@ function confDiv(){
   });
   // Mark original as archived (remove from active list)
   p.hist.push({tipo:'division',fecha:hoy(),notas:'Dividido en: '+fracs.map(f=>f.nombre).join(', ')});
+  if(!st.deletedPo)st.deletedPo=[];
+  if(!st.deletedPo.includes(cx.pid))st.deletedPo.push(cx.pid);
   delete st.po[cx.pid];
   save();cerrar('mDiv');render();
   alert('✅ '+p.nombre+' dividido en '+fracs.length+' potreros.');
